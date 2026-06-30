@@ -16,8 +16,8 @@ load_dotenv()
 CHROME_DRIVER_PATH = os.environ.get('CHROME_DRIVER_PATH')
 NAME = os.environ.get('NAME')
 PASSWORD = os.environ.get('PASSWORD')
-DOWNLOAD_PATH = os.environ.get('DOWNLOAD_PATH')
 
+DOWNLOAD_PATH = os.path.join(os.path.expanduser("~"), "Downloads", "sednica")
 os.makedirs(DOWNLOAD_PATH, exist_ok=True)
 
 
