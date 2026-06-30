@@ -5,4 +5,4 @@ __pycache__/
 *.pyc
 bin/
 lib/
-
+os.path.join(os.path.expanduser("~"), "Downloads", "sednica")
