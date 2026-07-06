@@ -158,17 +158,3 @@ class ParliamentScraper:
             print("Logged out successfully.")
         except Exception as e1:
             print(f"Logout failed (non-fatal): {e1}")
-
-
-bot = ParliamentScraper()
-bot.login()
-sleep(uniform(0.5, 1.5))
-try:
-    bot.download_docs()
-except Exception as e:
-    print(f"Scraper stopped: {e}")
-finally:
-    bot.logout()
-    sleep(uniform(1, 2))
-    bot.driver.quit()
-    rename_all(DOWNLOAD_PATH)
