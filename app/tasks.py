@@ -1,13 +1,17 @@
 from scraper import ParliamentScraper, rename_all, DOWNLOAD_PATH
 from app.status import update_job
+from app.database import SessionLocal
 
 
 def run_scraper(job_id):
+
+    db = SessionLocal()
 
     bot = ParliamentScraper()
 
     try:
         update_job(
+            db,
             job_id,
             "logging_in",
             "Logging into parliament website"
@@ -16,6 +20,7 @@ def run_scraper(job_id):
         bot.login()
 
         update_job(
+            db,
             job_id,
             "downloading",
             "Downloading documents"
@@ -24,6 +29,7 @@ def run_scraper(job_id):
         bot.download_docs()
 
         update_job(
+            db,
             job_id,
             "finished",
             "Download complete"
@@ -32,6 +38,7 @@ def run_scraper(job_id):
     except Exception as e:
 
         update_job(
+            db,
             job_id,
             "error",
             str(e)
@@ -41,3 +48,5 @@ def run_scraper(job_id):
         bot.logout()
         bot.driver.quit()
         rename_all(DOWNLOAD_PATH)
+
+        db.close()

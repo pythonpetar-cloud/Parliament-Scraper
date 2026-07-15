@@ -1,10 +1,8 @@
 from sqlalchemy.orm import Session
-
 from app.models import Job
 
 
 def create_job(db: Session, job_id: str):
-
     job = Job(
         id=job_id,
         status="created",
@@ -19,12 +17,11 @@ def create_job(db: Session, job_id: str):
 
 
 def update_job(
-    db: Session,
-    job_id: str,
-    status: str,
-    message: str = ""
+        db: Session,
+        job_id: str,
+        status: str,
+        message: str = ""
 ):
-
     job = db.get(Job, job_id)
 
     if job:
@@ -38,8 +35,7 @@ def update_job(
 
 
 def get_job(
-    db: Session,
-    job_id: str
+        db: Session,
+        job_id: str
 ):
-
     return db.get(Job, job_id)

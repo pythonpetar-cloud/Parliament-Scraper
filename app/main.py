@@ -1,9 +1,10 @@
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Depends
+import uuid
+from app.database import engine, get_db
+from app.models import Base
+from sqlalchemy.orm import Session
 from app.tasks import run_scraper
 from app.status import create_job, get_job
-import uuid
-from app.database import engine
-from app.models import Base
 
 Base.metadata.create_all(bind=engine)
 
@@ -18,10 +19,13 @@ def home():
 
 
 @app.post("/start")
-def start_scraper(background_tasks: BackgroundTasks):
+def start_scraper(
+        background_tasks: BackgroundTasks,
+        db: Session = Depends(get_db)
+):
     job_id = str(uuid.uuid4())
 
-    create_job(job_id)
+    create_job(db, job_id)
 
     background_tasks.add_task(
         run_scraper,
@@ -34,5 +38,8 @@ def start_scraper(background_tasks: BackgroundTasks):
 
 
 @app.get("/status/{job_id}")
-def status(job_id: str):
-    return get_job(job_id)
+def status(
+        job_id: str,
+        db: Session = Depends(get_db)
+):
+    return get_job(db, job_id)
