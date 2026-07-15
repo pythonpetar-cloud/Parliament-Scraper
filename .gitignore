@@ -4,5 +4,7 @@ __pycache__/
 *.pyc
 bin/
 lib/
+include/
 .DS_Store
 .idea/
+*.db
