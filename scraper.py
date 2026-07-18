@@ -8,7 +8,6 @@ from time import sleep
 from random import uniform
 import os
 import re
-import glob
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -41,14 +40,35 @@ def clean_filename(name: str) -> str:
 
 
 def rename_all(path: str):
-    files = glob.glob(os.path.join(path, "*"))
-    for filepath in files:
-        base, ext = os.path.splitext(os.path.basename(filepath))
-        new_name = clean_filename(base) + ext
-        new_path = os.path.join(path, new_name)
-        if filepath != new_path:
-            os.rename(filepath, new_path)
-            print(f"  {os.path.basename(filepath)} → {new_name}")
+    """Recursively rename downloaded files inside every item subfolder."""
+    for root, dirs, files in os.walk(path):
+        for filename in files:
+            if filename == "title.txt":
+                continue  # don't touch our metadata file
+
+            filepath = os.path.join(root, filename)
+            base, ext = os.path.splitext(filename)
+            new_name = clean_filename(base) + ext
+            new_path = os.path.join(root, new_name)
+
+            if filepath != new_path:
+                os.rename(filepath, new_path)
+                print(f"  {filename} → {new_name}")
+
+
+def sanitize_filename(name: str, max_bytes: int = 200) -> str:
+    """Strip illegal characters and truncate to a safe byte length for the filesystem."""
+    name = re.sub(r'[\\/*?:"<>|]', "", name)
+    name = re.sub(r'\s+', " ", name).strip()
+
+    # Truncate by UTF-8 byte length, not character count
+    encoded = name.encode("utf-8")
+    if len(encoded) > max_bytes:
+        encoded = encoded[:max_bytes]
+        # avoid cutting in the middle of a multibyte character
+        name = encoded.decode("utf-8", errors="ignore")
+
+    return name.strip()
 
 
 class ParliamentScraper:
@@ -101,18 +121,46 @@ class ParliamentScraper:
 
         raise Exception("All login attempts failed.")
 
-    def download_docs(self):
+    def get_item_title(self):
+        """Grab the item's title from the 'Назив' row inside the currently open item detail view."""
+        title_element = self.wait.until(ec.presence_of_element_located(
+            (By.XPATH, "//tr[td[normalize-space(text())='Назив']]/td[2]")
+        ))
+        return title_element.text.strip()
+
+    def set_download_directory(self, path: str):
+        """Redirect Chrome's downloads to a specific folder via CDP."""
+        os.makedirs(path, exist_ok=True)
+        self.driver.execute_cdp_cmd("Page.setDownloadBehavior", {
+            "behavior": "allow",
+            "downloadPath": path
+        })
+
+    def download_docs(self, base_dir: str = DOWNLOAD_PATH):
         self.wait.until(ec.presence_of_element_located((By.CSS_SELECTOR, ".td-action")))
         total_items = len(self.driver.find_elements(By.CSS_SELECTOR, ".td-action"))
         print(f"Found {total_items} items at the assembly session.")
 
         main_window = self.driver.current_window_handle
+        os.makedirs(base_dir, exist_ok=True)
 
         for i in range(1, total_items + 1):
             item = self.wait.until(ec.element_to_be_clickable(
                 (By.XPATH, f"(//i[contains(@class,'fa-info-circle')])[{i}]")
             ))
             human_click(self.driver, item)
+
+            # Grab the title now that we're inside the item detail view
+            title_text = self.get_item_title()
+            folder_name = f"{i}. {sanitize_filename(title_text, max_bytes=200 - len(str(i)) - 1)}"
+            item_folder = os.path.join(base_dir, folder_name)
+            os.makedirs(item_folder, exist_ok=True)
+
+            with open(os.path.join(item_folder, "title.txt"), "w", encoding="utf-8") as f:
+                f.write(title_text)
+
+            # Redirect downloads for this item into its own folder
+            self.set_download_directory(item_folder)
 
             panels = ["Документа", "Прилози"]
             for panel_name in panels:
@@ -129,7 +177,7 @@ class ParliamentScraper:
 
                 files = panel_table.find_elements(By.CSS_SELECTOR, ".fa.fa-download")
                 total_files = len(files)
-                print(f"  Found {total_files} file(s) under '{panel_name}' for item {i}.")
+                print(f"  Found {total_files} file(s) under '{panel_name}' for item {i} -> {folder_name}")
 
                 for j in range(total_files):
                     panel_table = self.driver.find_element(
