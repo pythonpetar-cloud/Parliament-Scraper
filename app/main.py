@@ -19,27 +19,16 @@ def home():
 
 
 @app.post("/start")
-def start_scraper(
-        background_tasks: BackgroundTasks,
-        db: Session = Depends(get_db)
-):
+def start_scraper(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     job_id = str(uuid.uuid4())
-
     create_job(db, job_id)
-
-    background_tasks.add_task(
-        run_scraper,
-        job_id
-    )
-
+    background_tasks.add_task(run_scraper, job_id)
     return {
         "job_id": job_id
     }
 
 
 @app.get("/status/{job_id}")
-def status(
-        job_id: str,
-        db: Session = Depends(get_db)
-):
+def status(job_id: str, db: Session = Depends(get_db)):
     return get_job(db, job_id)
+
