@@ -13,13 +13,11 @@ def get_agenda_item(db: Session, number: int):
 def create_agenda_item(
         db: Session,
         number: int,
-        title: str,
-        folder_path: str
+        title: str
 ):
     agenda = AgendaItem(
         number=number,
-        title=title,
-        folder_path=folder_path
+        title=title
     )
 
     db.add(agenda)
@@ -49,12 +47,12 @@ def create_document(
         db: Session,
         agenda_item_id: int,
         filename: str,
-        file_path: str
+        storage_path: str
 ):
     document = Document(
         agenda_item_id=agenda_item_id,
         filename=filename,
-        file_path=file_path
+        storage_path=storage_path
     )
 
     db.add(document)

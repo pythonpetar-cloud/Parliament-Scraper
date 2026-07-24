@@ -4,11 +4,18 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.common.action_chains import ActionChains
 import selenium.common.exceptions
+from sqlalchemy.orm import Session
 from time import sleep
 from random import uniform
 import os
 import re
 from dotenv import load_dotenv
+from app.documents import (
+    get_agenda_item,
+    create_agenda_item,
+    document_exists,
+    create_document
+)
 
 load_dotenv()
 
@@ -72,7 +79,8 @@ def sanitize_filename(name: str, max_bytes: int = 200) -> str:
 
 
 class ParliamentScraper:
-    def __init__(self):
+    def __init__(self, db=None):
+        self.db = db
         options = uc.ChromeOptions()
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
@@ -136,7 +144,7 @@ class ParliamentScraper:
             "downloadPath": path
         })
 
-    def download_docs(self, base_dir: str = DOWNLOAD_PATH):
+    def download_docs(self, db: Session, base_dir: str = DOWNLOAD_PATH):
         self.wait.until(ec.presence_of_element_located((By.CSS_SELECTOR, ".td-action")))
         total_items = len(self.driver.find_elements(By.CSS_SELECTOR, ".td-action"))
         print(f"Found {total_items} items at the assembly session.")
@@ -155,6 +163,13 @@ class ParliamentScraper:
             folder_name = f"{i}. {sanitize_filename(title_text, max_bytes=200 - len(str(i)) - 1)}"
             item_folder = os.path.join(base_dir, folder_name)
             os.makedirs(item_folder, exist_ok=True)
+            agenda = get_agenda_item(db, i)
+            if agenda is None:
+                agenda = create_agenda_item(
+                    db,
+                    i,
+                    title_text
+                )
 
             with open(os.path.join(item_folder, "title.txt"), "w", encoding="utf-8") as f:
                 f.write(title_text)
@@ -185,9 +200,48 @@ class ParliamentScraper:
                         f"//div[contains(@class,'panel-heading') and contains(normalize-space(text()),"
                         f"'{panel_name}')]/following-sibling::table"
                     )
+
                     files = panel_table.find_elements(By.CSS_SELECTOR, ".fa.fa-download")
+
+                    # check files before download
+                    before_download = set(os.listdir(item_folder))
+
                     human_click(self.driver, files[j])
-                    sleep(uniform(0.5, 1.5))
+
+                    sleep(uniform(2, 3))
+
+                    # check files after download
+                    after_download = set(os.listdir(item_folder))
+
+                    new_files = after_download - before_download
+
+                    if new_files:
+                        old_filename = new_files.pop()
+                        old_path = os.path.join(
+                            item_folder,
+                            old_filename
+                        )
+
+                        base, ext = os.path.splitext(old_filename)
+                        new_filename = clean_filename(base) + ext
+                        new_path = os.path.join(
+                            item_folder,
+                            new_filename
+                        )
+                        os.rename(old_path, new_path)
+                        print(f"    Renamed: {old_filename} → {new_filename}")
+
+                        if not document_exists(db, agenda.id, new_filename):
+                            create_document(
+                                db,
+                                agenda.id,
+                                new_filename,
+                                new_path
+                            )
+
+                    else:
+                        print("    No new file detected")
+
                     self.driver.switch_to.window(main_window)
 
             return_button = self.wait.until(

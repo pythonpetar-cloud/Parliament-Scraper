@@ -5,8 +5,11 @@ from app.database import SessionLocal
 
 def run_scraper(job_id):
     db = SessionLocal()
-    bot = ParliamentScraper()
+    bot = None
+
     try:
+        bot = ParliamentScraper(db)
+
         update_job(
             db,
             job_id,
@@ -23,7 +26,7 @@ def run_scraper(job_id):
             "Downloading documents"
         )
 
-        bot.download_docs()
+        bot.download_docs(db)
 
         update_job(
             db,
@@ -42,7 +45,9 @@ def run_scraper(job_id):
         )
 
     finally:
-        bot.logout()
-        bot.driver.quit()
+        if bot:
+            bot.logout()
+            bot.driver.quit()
+
         rename_all(DOWNLOAD_PATH)
         db.close()
